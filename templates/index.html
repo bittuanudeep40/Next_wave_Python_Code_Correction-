@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-F" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Python Code Corrector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+      /* Use Inter as the default font */
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom scrollbar for textareas */
+      textarea::-webkit-scrollbar {
+        width: 8px;
+      }
+      textarea::-webkit-scrollbar-track {
+        background: #2d3748; /* gray-800 */
+      }
+      textarea::-webkit-scrollbar-thumb {
+        background: #4a5568; /* gray-600 */
+        border-radius: 4px;
+      }
+      textarea::-webkit-scrollbar-thumb:hover {
+        background: #718096; /* gray-500 */
+      }
+      /* Ensure highlighted code block is styled correctly */
+      pre code.hljs {
+        border-radius: 0.5rem; /* rounded-lg */
+        padding: 1rem;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-900 text-white min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+      <header class="text-center mb-8">
+        <h1 class="text-3xl md:text-4xl font-bold text-blue-400 mb-2">
+          AI Python Code Corrector
+        </h1>
+        <p class="text-lg text-gray-400">
+          Paste your broken Python code below. The AI will analyze it and
+          provide a fix.
+        </p>
+      </header>
+
+      <div class="mb-6">
+        <label
+          for="input-code"
+          class="block text-sm font-medium text-gray-300 mb-2"
+          >Broken Python Code</label
+        >
+        <textarea
+          id="input-code"
+          rows="12"
+          class="w-full p-4 bg-gray-800 border border-gray-700 rounded-lg text-white font-mono text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="def my_function(a, b)
+    return a - b
+
+# Test
+print(my_function(5, 3) == 8) # This will fail"
+        ></textarea>
+      </div>
+
+      <div class="text-center mb-6">
+        <button
+          id="correct-button"
+          class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 inline-block -ml-1 mr-2"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 019 18v-5H5a1 1 0 01-.82-1.573l7-10a1 1 0 01.12-.38zM10 13.341V16l5.227-7.468H11V6.659L5.773 14.127H9v-.786z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          Fix My Code
+        </button>
+
+        <div
+          id="loader"
+          class="hidden items-center justify-center w-full sm:w-auto bg-gray-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg"
+        >
+          <svg
+            class="animate-spin h-5 w-5 mr-3 text-blue-400"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          AI is thinking...
+        </div>
+      </div>
+
+      <div
+        id="error-box"
+        class="hidden p-4 mb-6 bg-red-900 border border-red-700 text-red-200 rounded-lg shadow"
+      ></div>
+
+      <div id="output-section" class="hidden">
+        <div class="flex justify-between items-center mb-2">
+          <label class="block text-sm font-medium text-gray-300"
+            >Corrected Code</label
+          >
+          <button
+            id="copy-button"
+            class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-1 px-3 rounded-lg text-sm transition-colors duration-200"
+          >
+            Copy
+          </button>
+        </div>
+        <pre><code id="output-code" class="language-python"></code></pre>
+      </div>
+    </div>
+
+    <script>
+      // --- DOM Elements ---
+      const inputCodeEl = document.getElementById("input-code");
+      const correctButton = document.getElementById("correct-button");
+      const loader = document.getElementById("loader");
+      const outputSection = document.getElementById("output-section");
+      const outputCodeEl = document.getElementById("output-code");
+      const copyButton = document.getElementById("copy-button");
+      const errorBox = document.getElementById("error-box");
+
+      // --- API Configuration ---
+      // This points to our own backend server (app.py)
+      const apiUrl = "/api/correct";
+
+      // --- Event Listeners ---
+      correctButton.addEventListener("click", handleCorrectCode);
+      copyButton.addEventListener("click", copyToClipboard);
+
+      /**
+       * Main function to handle the code correction process.
+       */
+      async function handleCorrectCode() {
+        const userInput = inputCodeEl.value;
+        if (!userInput.trim()) {
+          showError("Please paste your Python code into the box first.");
+          return;
+        }
+
+        // 1. Set UI to "Loading" state
+        setLoadingState(true);
+
+        // 2. Define the system prompt
+        const systemPrompt = `You are an expert Python developer and code reviewer.
+Your task is to analyze the provided Python code, identify any bugs, errors, or logical issues, and provide the complete, corrected code.
+Your response must contain ONLY the raw, corrected Python code.
+Do not include explanations, apologies, markdown formatting (like \`\`\`python), or any text other than the code itself.`;
+
+        // 3. Call the backend API with retry logic
+        try {
+          const correctedCode = await callBackendWithBackoff(
+            systemPrompt,
+            userInput
+          );
+
+          if (correctedCode === null || correctedCode === undefined) {
+            throw new Error("The AI returned an empty response.");
+          }
+
+          // 4. Display the result
+          displayResult(correctedCode);
+        } catch (error) {
+          console.error("Error during API call:", error);
+          showError(
+            `An error occurred: ${error.message}. Please check the console or try again.`
+          );
+        } finally {
+          // 5. Restore UI from "Loading" state
+          setLoadingState(false);
+        }
+      }
+
+      /**
+       * Calls the backend API with exponential backoff.
+       */
+      async function callBackendWithBackoff(systemPrompt, userQuery) {
+        // This is the payload our Flask backend expects.
+        const payload = {
+          code: userQuery,
+          prompt: systemPrompt,
+        };
+
+        let retries = 3;
+        let delay = 1000; // 1 second
+
+        for (let i = 0; i < retries; i++) {
+          try {
+            const response = await fetch(apiUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+              const errorMsg =
+                result.error ||
+                `API request failed with status ${response.status}`;
+              throw new Error(errorMsg);
+            }
+
+            // Get the code from our backend's JSON response.
+            if (result.corrected_code) {
+              return sanitizeResponse(result.corrected_code); // Sanitize and return
+            } else {
+              throw new Error("Invalid response structure from backend.");
+            }
+          } catch (error) {
+            console.warn(`Attempt ${i + 1} failed: ${error.message}`);
+            if (i === retries - 1) {
+              // Last attempt failed, re-throw the error
+              throw error;
+            }
+            // Wait with exponential backoff
+            await new Promise((res) => setTimeout(res, delay));
+            delay *= 2; // Double the delay for the next retry
+          }
+        }
+      }
+
+      /**
+       * Cleans the AI's response, removing markdown fences.
+       */
+      function sanitizeResponse(text) {
+        if (!text) return "";
+        // Regex to find content within ```python ... ```
+        const match = text.match(/```python\s*([\s\S]*?)\s*```/s);
+        if (match && match[1]) {
+          return match[1].trim();
+        }
+        // Fallback: remove any triple backticks
+        return text.replace(/```/g, "").trim();
+      }
+
+      /**
+       * Displays the corrected code in the output block.
+       */
+      function displayResult(correctedCode) {
+        // Set the raw text content
+        outputCodeEl.textContent = correctedCode;
+
+        // Apply syntax highlighting
+        // This is a special function from highlight.js
+        hljs.highlightElement(outputCodeEl);
+
+        // Show the output section
+        outputSection.classList.remove("hidden");
+      }
+
+      /**
+       * Toggles the UI between loading and idle states.
+       */
+      function setLoadingState(isLoading) {
+        if (isLoading) {
+          correctButton.classList.add("hidden");
+          loader.classList.remove("hidden");
+          loader.classList.add("inline-flex"); // Make it display properly
+          errorBox.classList.add("hidden");
+          outputSection.classList.add("hidden");
+        } else {
+          correctButton.classList.remove("hidden");
+          loader.classList.add("hidden");
+          loader.classList.remove("inline-flex");
+        }
+      }
+
+      /**
+       * Shows an error message in the error box.
+       */
+      function showError(message) {
+        errorBox.textContent = message;
+        errorBox.classList.remove("hidden");
+      }
+
+      /**
+       * Copies the content of the output block to the clipboard.
+       */
+      function copyToClipboard() {
+        const textToCopy = outputCodeEl.textContent;
+
+        // Use the modern Navigator.clipboard API
+        if (navigator.clipboard) {
+          navigator.clipboard
+            .writeText(textToCopy)
+            .then(() => {
+              // Provide visual feedback
+              copyButton.textContent = "Copied!";
+              setTimeout(() => {
+                copyButton.textContent = "Copy";
+              }, 2000);
+            })
+            .catch((err) => {
+              console.error("Failed to copy text: ", err);
+              showError("Failed to copy text. Please copy it manually.");
+            });
+        } else {
+          // Fallback for older browsers
+          try {
+            const tempTextArea = document.createElement("textarea");
+            tempTextArea.value = textToCopy;
+            tempTextArea.style.position = "absolute";
+            tempTextArea.style.left = "-9999px";
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempTextArea);
+
+            // Provide visual feedback
+            copyButton.textContent = "Copied!";
+            setTimeout(() => {
+              copyButton.textContent = "Copy";
+            }, 2000);
+          } catch (err) {
+            console.error("Failed to copy text: ", err);
+            showError("Failed to copy text. Please copy it manually.");
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

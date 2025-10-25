@@ -1,0 +1,126 @@
+You are an expert Python developer. Your task is to write a single, robust, and self-improving Python script named agent.py.
+Failure to follow the CRITICAL rules will result in a broken script.
+
+Core Goal:
+The agent will iteratively fix a broken Python project. It runs a test suite, analyzes failures, and uses an LLM to generate code corrections. If it fails, it will rewrite itself.
+
+Key Configuration:
+
+Use these constants:
+TARGET_DIR = '../target_project/'
+TEST_DIR = '../test_suite/'
+BACKUP_DIR = '../target_project_backup/'
+MODEL_NAME = 'gemini-1.5-flash'
+MAX_ATTEMPTS = 3
+LOG_FILE = 'agent.log'
+
+Configure logging to write to LOG_FILE.
+
+Get the Google API key from the GOOGLE_API_KEY environment variable.
+
+Import all necessary libraries: os, subprocess, logging, shutil, re, sys, google.generativeai as genai, and from google.api_core import exceptions as google_api_exceptions.
+
+CRITICAL: Error Handling Rules:
+
+Specific Exceptions: You MUST use try...except blocks for specific errors:
+
+IOError for file operations (like open, shutil).
+
+subprocess.CalledProcessError for subprocess.run.
+
+google_api_exceptions.GoogleAPIError for all genai API calls.
+
+No except Exception: Do NOT use except Exception as e: anywhere except for one single block in the main() function, which must be the last except block.
+
+CRITICAL: Syntax Rule for Prompts:
+
+THIS IS THE #1 CAUSE OF FAILURE. FOLLOW THIS RULE.
+
+When building prompts (in generate_fix and self_improve), DO NOT USE multi-line f-strings (f"""..."""). This breaks the Python syntax.
+
+YOU MUST USE THIS METHOD INSTEAD:
+prompt_lines = []
+prompt_lines.append("You are an expert developer.\n")
+prompt_lines.append(f"The error is: {error_message}\n")
+prompt_lines.append(f"The code is:\n{source_code}")
+prompt = "".join(prompt_lines)
+
+This is mandatory to prevent syntax errors.
+
+Core Logic (Functions to write):
+
+File Handling: All calls to open() MUST explicitly specify encoding="utf-8". (e.g., open(path, "r", encoding="utf-8")). This is mandatory.
+
+backup_project(): Copy TARGET_DIR to BACKUP_DIR using shutil.copytree.
+
+restore_project(): Copy BACKUP_DIR to TARGET_DIR using shutil.copytree.
+
+run_tests(): Run pytest {TEST_DIR} with subprocess.run.
+
+generate_fix(stderr, history):
+
+This function MUST take stderr as an argument.
+
+Parse the stderr text to find the failing file path (use re.search).
+
+Read the source code of that file (using encoding="utf-8").
+
+Build the prompt (following the CRITICAL Syntax Rule above) including the source code, the full stderr, and the history.
+
+Call the genai model to get the fixed code.
+
+Sanitize the response (remove markdown ```python).
+
+Overwrite the failing file with the new code (using encoding="utf-8").
+
+To fix "unused-argument" errors: If a function (like generate_fix) doesn't need an argument you listed, remove that argument from the function definition.
+
+CRITICAL: Self-Improvement Function (self_improve):
+
+You MUST write a function defined exactly as def self_improve():.
+
+This function MUST perform these steps:
+
+Read its own source code from file (using encoding="utf-8").
+
+Read the entire LOG_FILE (using encoding="utf-8").
+
+Build a "meta-prompt" (using the safe "".join(prompt_lines) method) that includes the agent's source code, the logs, and an instruction to the AI to find the flaw and rewrite the agent.
+
+Call the genai model with this meta-prompt.
+
+Sanitize the response (remove markdown).
+
+Overwrite its own file with the new, improved code (using encoding="utf-8").
+
+Log and print "Self-improvement applied."
+
+ABSOLUTE REQUIREMENT: main() Function Logic:
+
+The main() function MUST use this exact try...finally structure:
+try:
+    # ... all main logic here ...
+except Exception as e:
+    # ... log the final general error ...
+finally:
+    restore_project()
+
+Inside the try block:
+
+Call backup_project().
+
+Start a while loop for MAX_ATTEMPTS.
+
+Call run_tests().
+
+If tests pass (return code 0): Log success, print "SUCCESS", shutil.rmtree(BACKUP_DIR), and sys.exit(0).
+
+If tests fail: Log the full stderr. You MUST call generate_fix(stderr, history) and update the history variable.
+
+After the while loop finishes (i.e., attempts are exhausted):
+
+Log and print "FAILURE: Could not fix the code."
+
+You MUST call the self_improve() function. This is not optional.
+
+Call sys.exit(1).

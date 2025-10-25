@@ -1,126 +1,92 @@
-You are an expert Python developer. Your task is to write a single, robust, and self-improving Python script named agent.py.
-Failure to follow the CRITICAL rules will result in a broken script.
+You are Smol Developer.
 
-Core Goal:
-The agent will iteratively fix a broken Python project. It runs a test suite, analyzes failures, and uses an LLM to generate code corrections. If it fails, it will rewrite itself.
+Your task is to generate a single Python file named `agent.py`.
 
-Key Configuration:
+This agent will use Google's Gemini API to automatically fix code in a target project by running tests, analyzing errors, and applying self-generated fixes.
 
-Use these constants:
-TARGET_DIR = '../target_project/'
-TEST_DIR = '../test_suite/'
-BACKUP_DIR = '../target_project_backup/'
-MODEL_NAME = 'gemini-1.5-flash'
+Follow these exact specifications:
+
+# Project Goal
+Create a self-improving coding agent that:
+1. Backs up a target project.
+2. Runs pytest tests.
+3. Detects errors and identifies which file caused them.
+4. Uses an LLM (Gemini model) to generate corrected code.
+5. Applies the fix to the file.
+6. Repeats up to N attempts until all tests pass.
+7. Restores from backup if unrecoverable errors occur.
+
+# Technical Specifications
+- The main file must be named `agent.py`.
+- Use Python 3 and standard libraries (`os`, `sys`, `subprocess`, `logging`, `shutil`, `re`).
+- Use `google.generativeai` for the Gemini model.
+- Use model name `"gemini-2.0-flash"`.
+- The environment variable `GOOGLE_API_KEY` must be read using `os.environ.get("GOOGLE_API_KEY")`.
+- If the API key is missing, log an error and exit.
+- Set up a logger that writes to `agent.log`.
+
+# Directory Configuration
+TARGET_DIR = "../target_project/"
+TEST_DIR = "../test_suite/"
+BACKUP_DIR = "../target_project_backup/"
+
+# Core Functions
+
+1. backup_project()
+   - Copies the target project to the backup directory.
+   - Removes any existing backup before copying.
+
+2. restore_project()
+   - Restores the target project from the backup.
+   - If no backup exists, logs a warning.
+
+3. run_tests()
+   - Runs pytest on TEST_DIR using:
+     subprocess.run([sys.executable, "-m", "pytest", TEST_DIR], capture_output=True, text=True, check=False)
+   - Returns the result object.
+   - Logs the return code.
+
+4. generate_fix(stderr)
+   - Parses the failing file path from stderr using regex.
+   - Reads the source code of the failing file.
+   - Constructs a prompt for the Gemini model:
+     You are an expert developer. Fix the code based on the error message.
+     The error is:
+     {stderr}
+     The code for {full_file_path} is:
+     ```python
+     {source_code}
+     ```
+     Provide only the complete, corrected Python code for the file,
+     without any explanations or markdown formatting like ```python.
+   - Sends the prompt to Gemini using:
+     response = model.generate_content(prompt)
+     fixed_code = response.text
+   - Cleans up markdown formatting and returns (file_path, fixed_code).
+
+5. apply_fix(file_path, fixed_code)
+   - Writes the fixed code to the target file, overwriting it.
+
+6. main()
+   - Backs up the project.
+   - Runs tests up to MAX_ATTEMPTS times.
+   - If tests fail:
+     - Calls generate_fix().
+     - Applies the fix using apply_fix().
+     - Re-runs tests.
+     - Restores project if tests still fail after all attempts.
+   - Logs all progress and errors.
+
+# Constants
+MODEL_NAME = "gemini-2.0-flash"
 MAX_ATTEMPTS = 3
-LOG_FILE = 'agent.log'
+LOG_FILE = "agent.log"
 
-Configure logging to write to LOG_FILE.
+# Control Flow
+- If tests pass → log success → stop loop.
+- If tests fail after all retries → restore backup → log failure.
+- Always ensure clean exit.
 
-Get the Google API key from the GOOGLE_API_KEY environment variable.
-
-Import all necessary libraries: os, subprocess, logging, shutil, re, sys, google.generativeai as genai, and from google.api_core import exceptions as google_api_exceptions.
-
-CRITICAL: Error Handling Rules:
-
-Specific Exceptions: You MUST use try...except blocks for specific errors:
-
-IOError for file operations (like open, shutil).
-
-subprocess.CalledProcessError for subprocess.run.
-
-google_api_exceptions.GoogleAPIError for all genai API calls.
-
-No except Exception: Do NOT use except Exception as e: anywhere except for one single block in the main() function, which must be the last except block.
-
-CRITICAL: Syntax Rule for Prompts:
-
-THIS IS THE #1 CAUSE OF FAILURE. FOLLOW THIS RULE.
-
-When building prompts (in generate_fix and self_improve), DO NOT USE multi-line f-strings (f"""..."""). This breaks the Python syntax.
-
-YOU MUST USE THIS METHOD INSTEAD:
-prompt_lines = []
-prompt_lines.append("You are an expert developer.\n")
-prompt_lines.append(f"The error is: {error_message}\n")
-prompt_lines.append(f"The code is:\n{source_code}")
-prompt = "".join(prompt_lines)
-
-This is mandatory to prevent syntax errors.
-
-Core Logic (Functions to write):
-
-File Handling: All calls to open() MUST explicitly specify encoding="utf-8". (e.g., open(path, "r", encoding="utf-8")). This is mandatory.
-
-backup_project(): Copy TARGET_DIR to BACKUP_DIR using shutil.copytree.
-
-restore_project(): Copy BACKUP_DIR to TARGET_DIR using shutil.copytree.
-
-run_tests(): Run pytest {TEST_DIR} with subprocess.run.
-
-generate_fix(stderr, history):
-
-This function MUST take stderr as an argument.
-
-Parse the stderr text to find the failing file path (use re.search).
-
-Read the source code of that file (using encoding="utf-8").
-
-Build the prompt (following the CRITICAL Syntax Rule above) including the source code, the full stderr, and the history.
-
-Call the genai model to get the fixed code.
-
-Sanitize the response (remove markdown ```python).
-
-Overwrite the failing file with the new code (using encoding="utf-8").
-
-To fix "unused-argument" errors: If a function (like generate_fix) doesn't need an argument you listed, remove that argument from the function definition.
-
-CRITICAL: Self-Improvement Function (self_improve):
-
-You MUST write a function defined exactly as def self_improve():.
-
-This function MUST perform these steps:
-
-Read its own source code from file (using encoding="utf-8").
-
-Read the entire LOG_FILE (using encoding="utf-8").
-
-Build a "meta-prompt" (using the safe "".join(prompt_lines) method) that includes the agent's source code, the logs, and an instruction to the AI to find the flaw and rewrite the agent.
-
-Call the genai model with this meta-prompt.
-
-Sanitize the response (remove markdown).
-
-Overwrite its own file with the new, improved code (using encoding="utf-8").
-
-Log and print "Self-improvement applied."
-
-ABSOLUTE REQUIREMENT: main() Function Logic:
-
-The main() function MUST use this exact try...finally structure:
-try:
-    # ... all main logic here ...
-except Exception as e:
-    # ... log the final general error ...
-finally:
-    restore_project()
-
-Inside the try block:
-
-Call backup_project().
-
-Start a while loop for MAX_ATTEMPTS.
-
-Call run_tests().
-
-If tests pass (return code 0): Log success, print "SUCCESS", shutil.rmtree(BACKUP_DIR), and sys.exit(0).
-
-If tests fail: Log the full stderr. You MUST call generate_fix(stderr, history) and update the history variable.
-
-After the while loop finishes (i.e., attempts are exhausted):
-
-Log and print "FAILURE: Could not fix the code."
-
-You MUST call the self_improve() function. This is not optional.
-
-Call sys.exit(1).
+# Output
+Produce the complete final Python source code for `agent.py` implementing all of the above logic exactly as specified.
+No explanations, markdown, or extra commentary — output only valid Python code.

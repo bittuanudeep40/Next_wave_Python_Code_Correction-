@@ -1,0 +1,5 @@
+google-generativeai
+google-api-core
+python-dotenv
+flask
+pytest

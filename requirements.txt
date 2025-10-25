@@ -3,3 +3,4 @@ google-api-core
 python-dotenv
 flask
 pytest
+streamlit
